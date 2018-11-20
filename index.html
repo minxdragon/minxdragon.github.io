@@ -2,12 +2,12 @@
 <html>
 <script src="https://aframe.io/releases/0.6.1/aframe.min.js"></script>
 <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/1.5.0/aframe/build/aframe-ar.js"> </script>
-<script>THREEx.ArToolkitContext.baseURL = 'https://rawgit.com/jeromeetienne/ar.js/master/three.js'</script>
   <body style='margin : 0px; overflow: hidden;'>
-    <a-scene embedded artoolkit='sourceType: webcam;'>
-        <a-box position='0 0.5 0' material='opacity: 0.5'></a-box>
-        <a-marker-camera preset="hiro"></a-marker-camera>
-        
+    <a-scene embedded arjs>
+  	<a-marker preset="pattern" patternURL="https://minxdragon.github.io/pattern-marker.patt">
+            <a-box position='0 0.5 0' material='color: green; opacity: 0.5'></a-box>
+  	</a-marker>
+  	<a-entity camera></a-entity>
     </a-scene>
   </body>
 </html>
