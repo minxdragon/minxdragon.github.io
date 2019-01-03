@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <head>
 	<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
-	<title>Hello, world! 2</title>
+	<title>Hello, world! 1.3</title>
 	<!-- include three.js library -->
 	<script src='js/three.js'></script>
 	<!-- include jsartookit -->
@@ -50,16 +50,6 @@ function initialize()
 	deltaTime = 0;
 	totalTime = 0;
 	
-	// load the GIF texture
-		var textureLoader = new THREE.TextureLoader().load(
-'https://66.media.tumblr.com/d26724127f88993ccc45c70294ec2ece/tumblr_oofhopNoKn1s3rn2wo7_250.gif'
-    );
-	 // Create material
-    material = new THREE.MeshBasicMaterial( {
-			map: textureLoader
-    });
-
-
 	////////////////////////////////////////////////////////////
 	// setup arToolkitSource
 	////////////////////////////////////////////////////////////
@@ -97,7 +87,6 @@ function initialize()
 	arToolkitContext.init( function onCompleted(){
 		camera.projectionMatrix.copy( arToolkitContext.getProjectionMatrix() );
 	});
-	
 	////////////////////////////////////////////////////////////
 	// setup markerRoots
 	////////////////////////////////////////////////////////////
@@ -109,7 +98,7 @@ function initialize()
 	})
 	let geometry1 = new THREE.PlaneBufferGeometry(1,1, 4,4);
 	let loader = new THREE.TextureLoader();
-	let texture = loader.load( material, render );
+	let texture = loader.load( 'IMG_20190103_193809-ANIMATION.gif', render );
 	let material1 = new THREE.MeshBasicMaterial( { map: texture } );
 	
 	mesh1 = new THREE.Mesh( geometry1, material1 );
