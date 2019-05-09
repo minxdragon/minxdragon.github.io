@@ -999,20 +999,15 @@ var Qb=[Ik,Zh,_h,Qj,Qi,Pi,Ri,Ag,sg,qg,rg,yg,kh,jh,Oi,Mj];var Rb=[Jk,ki,ji,gi];va
 			image = this.image;
 		}
 
-		if (image.videoWidth > image.videoHeight)
-		{
-			//landscape
-			this.ctx.drawImage(image, 0, 0, this.canvas.width, this.canvas.height); // draw video
-		}
-		else {
 
-			this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-			//portrait
-			var scale = this.canvas.height / this.canvas.width;
-			var scaledHeight = this.canvas.width*scale;
-			var scaledWidth = this.canvas.height*scale;
-			var marginLeft = ( this.canvas.width - scaledWidth)/2;
-			this.ctx.drawImage(image, marginLeft, 0, scaledWidth, scaledHeight); // draw video
+		if (this.orientation === 'portrait') {
+			this.ctx.save();
+			this.ctx.translate(this.canvas.width, 0);
+			this.ctx.rotate(Math.PI/2);
+			this.ctx.drawImage(image, 0, 0, this.canvas.height, this.canvas.width); // draw video
+			this.ctx.restore();
+		} else {
+			this.ctx.drawImage(image, 0, 0, this.canvas.width, this.canvas.height); // draw video
 		}
 
 		var imageData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
@@ -4735,7 +4730,7 @@ THREEx.ArMarkerControls = function(context, object3d, parameters){
 	this.object3d = object3d
 	this.object3d.matrixAutoUpdate = false;
 	this.object3d.visible = false
-	
+
 	//////////////////////////////////////////////////////////////////////////////
 	//		setParameters
 	//////////////////////////////////////////////////////////////////////////////
@@ -4794,7 +4789,7 @@ THREEx.ArMarkerControls.prototype.dispose = function(){
 //////////////////////////////////////////////////////////////////////////////
 
 /**
- * When you actually got a new modelViewMatrix, you need to perfom a whole bunch 
+ * When you actually got a new modelViewMatrix, you need to perfom a whole bunch
  * of things. it is done here.
  */
 THREEx.ArMarkerControls.prototype.updateWithModelViewMatrix = function(modelViewMatrix){
@@ -4807,8 +4802,8 @@ THREEx.ArMarkerControls.prototype.updateWithModelViewMatrix = function(modelView
 		// apply context._axisTransformMatrix - change artoolkit axis to match usual webgl one
 		var tmpMatrix = new THREE.Matrix4().copy(this.context._artoolkitProjectionAxisTransformMatrix)
 		tmpMatrix.multiply(modelViewMatrix)
-		
-		modelViewMatrix.copy(tmpMatrix)		
+
+		modelViewMatrix.copy(tmpMatrix)
 	}else if( this.context.parameters.trackingBackend === 'aruco' ){
 		// ...
 	}else if( this.context.parameters.trackingBackend === 'tango' ){
@@ -4844,7 +4839,7 @@ THREEx.ArMarkerControls.prototype.updateWithModelViewMatrix = function(modelView
 //////////////////////////////////////////////////////////////////////////////
 
 /**
- * provide a name for a marker 
+ * provide a name for a marker
  * - silly heuristic for now
  * - should be improved
  */
@@ -4883,11 +4878,13 @@ THREEx.ArMarkerControls.prototype._initArtoolkit = function(){
 	}, 1000/50)
 
 	return
-	
+
 	function postInit(){
 		// check if arController is init
 		var arController = _this.context.arController
 		console.assert(arController !== null )
+
+        arController.setPattRatio(0.9);
 
 		// start tracking this pattern
 		if( _this.parameters.type === 'pattern' ){
@@ -4917,7 +4914,7 @@ THREEx.ArMarkerControls.prototype._initArtoolkit = function(){
 				onMarkerFound(event)
 			}
 		})
-		
+
 	}
 
 	function onMarkerFound(event){
@@ -6090,22 +6087,11 @@ ARjs.Source.prototype.onResizeElement = function(mirrorDomElements){
 }
 
 ARjs.Source.prototype.copyElementSizeTo = function(otherElement){
-		if (window.innerWidth > window.innerHeight)
-		{
-			//landscape
-			otherElement.style.width = this.domElement.style.width
-			otherElement.style.height = this.domElement.style.height
-			otherElement.style.marginLeft = this.domElement.style.marginLeft
-			otherElement.style.marginTop = this.domElement.style.marginTop
-		}
-		else {
-			//portrait
-			otherElement.style.height = this.domElement.style.height
-			otherElement.style.width = (parseInt(otherElement.style.height) * 4/3)+"px";
-			otherElement.style.marginLeft = ((window.innerWidth- parseInt(otherElement.style.width))/2)+"px";
-			otherElement.style.marginTop = 0;
-		}
-	}
+	otherElement.style.width = this.domElement.style.width
+	otherElement.style.height = this.domElement.style.height	
+	otherElement.style.marginLeft = this.domElement.style.marginLeft
+	otherElement.style.marginTop = this.domElement.style.marginTop
+}
 
 //////////////////////////////////////////////////////////////////////////////
 //		Code Separator
@@ -6487,7 +6473,6 @@ ARjs.Anchor = function(arSession, markerParameters){
 	// log to debug
 	console.log('ARjs.Anchor -', 'changeMatrixMode:', this.parameters.changeMatrixMode, '/ markersAreaEnabled:', markerParameters.markersAreaEnabled)
 
-
 	var markerRoot = new THREE.Group
 	scene.add(markerRoot)
 
@@ -6503,7 +6488,21 @@ ARjs.Anchor = function(arSession, markerParameters){
 	}else{
 		// sanity check - MUST be a trackingBackend with markers
 		console.assert( arContext.parameters.trackingBackend === 'artoolkit' || arContext.parameters.trackingBackend === 'aruco' )
-		// for multi marker
+
+		// honor markers-page-resolution for https://webxr.io/augmented-website
+		if( location.hash.substring(1).startsWith('markers-page-resolution=') === true ){
+			// get resolutionW/resolutionH from url
+			var markerPageResolution = location.hash.substring(1)
+			var matches = markerPageResolution.match(/markers-page-resolution=(\d+)x(\d+)/)
+			console.assert(matches.length === 3)
+			var resolutionW = parseInt(matches[1])
+			var resolutionH = parseInt(matches[2])
+			var arContext = arSession.arContext
+			// generate and store the ARjsMultiMarkerFile
+			ARjs.MarkersAreaUtils.storeMarkersAreaFileFromResolution(arContext.parameters.trackingBackend, resolutionW, resolutionH)
+		}
+
+		// if there is no ARjsMultiMarkerFile, build a default one
 		if( localStorage.getItem('ARjsMultiMarkerFile') === null ){
 			ARjs.MarkersAreaUtils.storeDefaultMultiMarkerFile(arContext.parameters.trackingBackend)
 		}
@@ -6525,7 +6524,8 @@ ARjs.Anchor = function(arSession, markerParameters){
 		// honor markerParameters.changeMatrixMode
 		multiMarkerControls.parameters.changeMatrixMode = markerParameters.changeMatrixMode
 
-		// create ArMarkerHelper - useful to debug
+// TODO put subMarkerControls visibility into an external file. with 2 handling for three.js and babylon.js
+		// create ArMarkerHelper - useful to debug - super three.js specific
 		var markerHelpers = []
 		multiMarkerControls.subMarkersControls.forEach(function(subMarkerControls){
 			// add an helper to visuable each sub-marker
@@ -6584,22 +6584,6 @@ ARjs.Anchor = function(arSession, markerParameters){
 		}
 	}
 }
-
-
-/**
- * Apply ARjs.Session.HitTestResult to the controlled object3d
- * 
- * @param {ARjs.HitTesting.Result} hitTestResult - the result to apply
- */
-ARjs.Anchor.prototype.applyHitTestResult = function(hitTestResult){
-	console.warn('obsolete anchro.applyHitTestResult - use hitTestResult.apply(object3d) instead')
-	hitTestResult.apply(this.object3d)
-	// object3d.position.copy(hitTestResult.position)
-	// object3d.quaternion.copy(hitTestResult.quaternion)
-	// object3d.scale.copy(hitTestResult.scale)
-	// 
-	// object3d.updateMatrix()
-}
 // @namespace
 var ARjs = ARjs || {}
 
@@ -6641,12 +6625,15 @@ ARjs.SessionDebugUI = function(arSession, tangoPointCloud){
 	//////////////////////////////////////////////////////////////////////////////
 	//		augmented-websites
 	//////////////////////////////////////////////////////////////////////////////
-	var domElement = document.createElement('a')
-	domElement.innerHTML = 'Share on augmented-websites'
-	domElement.style.display = 'block'
-	domElement.setAttribute('target', '_blank')
-	domElement.href = 'https://webxr.io/augmented-website?'+location.href
-	this.domElement.appendChild(domElement)				
+
+	if( ARjs.SessionDebugUI.AugmentedWebsiteURL ){
+		var domElement = document.createElement('a')
+		domElement.innerHTML = 'Share on augmented-websites'
+		domElement.style.display = 'block'
+		// domElement.setAttribute('target', '_blank')
+		domElement.href = ARjs.SessionDebugUI.AugmentedWebsiteURL + '?'+location.href
+		this.domElement.appendChild(domElement)						
+	}
 
 	//////////////////////////////////////////////////////////////////////////////
 	//		toggle-point-cloud
@@ -6672,6 +6659,12 @@ ARjs.SessionDebugUI = function(arSession, tangoPointCloud){
 		})
 	}
 }
+
+/**
+ * Url of augmented-website service - if === '' then dont include augmented-website link
+ * @type {String}
+ */
+ARjs.SessionDebugUI.AugmentedWebsiteURL = 'https://webxr.io/augmented-website'
 
 //////////////////////////////////////////////////////////////////////////////
 //		ARjs.AnchorDebugUI
@@ -7859,7 +7852,7 @@ ARjs.MarkersAreaUtils.navigateToLearnerPage = function(learnerBaseURL, trackingB
 		trackingBackend: trackingBackend,
 		markersControlsParameters: ARjs.MarkersAreaUtils.createDefaultMarkersControlsParameters(trackingBackend),
 	}
-	location.href = learnerBaseURL + '#' + encodeURIComponent(JSON.stringify(learnerParameters))
+	location.href = learnerBaseURL + '?' + encodeURIComponent(JSON.stringify(learnerParameters))
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -7896,7 +7889,7 @@ ARjs.MarkersAreaUtils.createDefaultMultiMarkerFile = function(trackingBackend){
 	// create the base file
 	var file = {
 		meta : {
-			createdBy : "AR.js Default Marker "+ARjs.Context.REVISION,
+			createdBy : 'AR.js ' + ARjs.Context.REVISION + ' - Default Marker',
 			createdAt : new Date().toJSON(),
 		},
 		trackingBackend : trackingBackend,
@@ -7996,6 +7989,130 @@ ARjs.MarkersAreaUtils.createDefaultMarkersControlsParameters = function(tracking
 	}else console.assert(false)
 	return markersControlsParameters
 }
+
+
+//////////////////////////////////////////////////////////////////////////////
+//		Code Separator
+//////////////////////////////////////////////////////////////////////////////
+/**
+ * generate areaFile
+ */
+ARjs.MarkersAreaUtils.storeMarkersAreaFileFromResolution = function (trackingBackend, resolutionW, resolutionH) {
+	// generate areaFile
+	var areaFile = this.buildMarkersAreaFileFromResolution(trackingBackend, resolutionW, resolutionH)
+	// store areaFile in localStorage
+	localStorage.setItem('ARjsMultiMarkerFile', JSON.stringify(areaFile))
+}
+
+
+//////////////////////////////////////////////////////////////////////////////
+//		Code Separator
+//////////////////////////////////////////////////////////////////////////////
+	
+ARjs.MarkersAreaUtils.buildMarkersAreaFileFromResolution = function(trackingBackend, resolutionW, resolutionH){
+	// create the base file
+	var file = {
+		meta : {
+			createdBy : 'AR.js - Augmented Website',
+			createdAt : new Date().toJSON(),
+		},
+		trackingBackend : trackingBackend,
+		subMarkersControls : [
+			// empty for now...
+		]
+	}
+	
+	var whiteMargin = 0.1
+	if( resolutionW > resolutionH ){
+		var markerImageSize = 0.4 * resolutionH
+	}else if( resolutionW < resolutionH ){
+		var markerImageSize = 0.4 * resolutionW
+	}else if( resolutionW === resolutionH ){
+		// specific for twitter player - https://dev.twitter.com/cards/types/player
+		var markerImageSize = 0.33 * resolutionW
+	}else console.assert(false)
+
+	// console.warn('using new markerImageSize computation')
+	var actualMarkerSize = markerImageSize * (1 - 2*whiteMargin)
+	
+	var deltaX = (resolutionW - markerImageSize)/2 / actualMarkerSize
+	var deltaZ = (resolutionH - markerImageSize)/2 / actualMarkerSize
+
+	var subMarkerControls = buildSubMarkerControls('center', 0, 0)
+	file.subMarkersControls.push(subMarkerControls)
+
+	var subMarkerControls = buildSubMarkerControls('topleft', -deltaX, -deltaZ)
+	file.subMarkersControls.push(subMarkerControls)
+	
+	var subMarkerControls = buildSubMarkerControls('topright', +deltaX, -deltaZ)
+	file.subMarkersControls.push(subMarkerControls)
+
+	var subMarkerControls = buildSubMarkerControls('bottomleft', -deltaX, +deltaZ)
+	file.subMarkersControls.push(subMarkerControls)
+	
+	var subMarkerControls = buildSubMarkerControls('bottomright', +deltaX, +deltaZ)
+	file.subMarkersControls.push(subMarkerControls)
+
+	return file
+	
+	//////////////////////////////////////////////////////////////////////////////
+	//		Code Separator
+	//////////////////////////////////////////////////////////////////////////////
+
+	function buildSubMarkerControls(layout, positionX, positionZ){
+		console.log('buildSubMarkerControls', layout, positionX, positionZ)
+		// create subMarkersControls
+		var subMarkersControls = {
+			parameters: {},
+			poseMatrix: new THREE.Matrix4().makeTranslation(positionX,0, positionZ).toArray(),
+		}
+		// fill the parameters
+		if( trackingBackend === 'artoolkit' ){
+			layout2MarkerParametersArtoolkit(subMarkersControls.parameters, layout)
+		}else if( trackingBackend === 'aruco' ){
+			layout2MarkerParametersAruco(subMarkersControls.parameters, layout)
+		}else console.assert(false)
+		// return subMarkersControls
+		return subMarkersControls
+	}
+
+	function layout2MarkerParametersArtoolkit(parameters, layout){
+		// create absoluteBaseURL
+		var link = document.createElement('a')
+		link.href = ARjs.Context.baseURL
+		var absoluteBaseURL = link.href
+			
+		var layout2PatternUrl = {
+			'center' : convertRelativeUrlToAbsolute(absoluteBaseURL + 'examples/marker-training/examples/pattern-files/pattern-hiro.patt'),
+			'topleft' : convertRelativeUrlToAbsolute(absoluteBaseURL + 'examples/marker-training/examples/pattern-files/pattern-letterA.patt'),
+			'topright' : convertRelativeUrlToAbsolute(absoluteBaseURL + 'examples/marker-training/examples/pattern-files/pattern-letterB.patt'),
+			'bottomleft' : convertRelativeUrlToAbsolute(absoluteBaseURL + 'examples/marker-training/examples/pattern-files/pattern-letterC.patt'),
+			'bottomright' : convertRelativeUrlToAbsolute(absoluteBaseURL + 'examples/marker-training/examples/pattern-files/pattern-letterF.patt'),
+		}
+		console.assert(layout2PatternUrl[layout] !== undefined )
+		parameters.type = 'pattern'
+		parameters.patternUrl = layout2PatternUrl[layout]
+		return
+		function convertRelativeUrlToAbsolute(relativeUrl){
+			var tmpLink = document.createElement('a');
+			tmpLink.href = relativeUrl
+			return tmpLink.href
+		}
+	}
+
+	function layout2MarkerParametersAruco(parameters, layout){
+		var layout2Barcode = {
+			'center' : 1001,
+			'topleft' : 1002,
+			'topright' : 1003,
+			'bottomleft' : 1004,
+			'bottomright' : 1005,
+		}
+		console.assert(layout2Barcode[layout])
+		parameters.type = 'barcode'
+		parameters.barcodeValue = layout2Barcode[layout]
+	}
+}
 //////////////////////////////////////////////////////////////////////////////
 //		arjs-anchor
 //////////////////////////////////////////////////////////////////////////////
@@ -8045,7 +8162,6 @@ AFRAME.registerComponent('arjs-anchor', {
 
 		_this.isReady = false
 		_this._arAnchor = null
-		_this.markerFound = false
 
 		// honor object visibility
 		if( _this.data.changeMatrixMode === 'modelViewMatrix' ){
@@ -8066,7 +8182,7 @@ AFRAME.registerComponent('arjs-anchor', {
 			//		update arProfile
 			//////////////////////////////////////////////////////////////////////////////
 			var arProfile = arjsSystem._arProfile
-			
+
 			// arProfile.changeMatrixMode('modelViewMatrix')
 			arProfile.changeMatrixMode(_this.data.changeMatrixMode)
 
@@ -8081,20 +8197,20 @@ AFRAME.registerComponent('arjs-anchor', {
 				arProfile.defaultMarkerParameters.markersAreaEnabled = false
 			}else if( _this.data.preset === 'area' ){
 				arProfile.defaultMarkerParameters.type = 'barcode'
-				arProfile.defaultMarkerParameters.barcodeValue = 1001	
+				arProfile.defaultMarkerParameters.barcodeValue = 1001
 				arProfile.defaultMarkerParameters.markersAreaEnabled = true
-			}else if( _this.data.type === 'pattern' ){
+			}else if( _this.data.preset === 'custom' ){
 				arProfile.defaultMarkerParameters.type = 'pattern'
 				arProfile.defaultMarkerParameters.patternUrl = _this.data.patternUrl;
 				arProfile.defaultMarkerParameters.markersAreaEnabled = false
-			}else {
+            }else {
 				// console.assert( this.data.preset === '', 'illegal preset value '+this.data.preset)
-			}		
+			}
 
 			//////////////////////////////////////////////////////////////////////////////
 			//		create arAnchor
 			//////////////////////////////////////////////////////////////////////////////
-			
+
 			var arSession = arjsSystem._arSession
 			var arAnchor = _this._arAnchor = new ARjs.Anchor(arSession, arProfile.defaultMarkerParameters)
 
@@ -8115,7 +8231,7 @@ AFRAME.registerComponent('arjs-anchor', {
 				}
 				// create anchorDebugUI
 				var anchorDebugUI = new ARjs.AnchorDebugUI(arAnchor)
-				containerElement.appendChild(anchorDebugUI.domElement)		
+				containerElement.appendChild(anchorDebugUI.domElement)
 			}
 		}, 1000/60)
 	},
@@ -8138,21 +8254,14 @@ AFRAME.registerComponent('arjs-anchor', {
 		//		honor pose
 		//////////////////////////////////////////////////////////////////////////////
 		var arWorldRoot = this._arAnchor.object3d
-		arWorldRoot.updateMatrixWorld(true)		
+		arWorldRoot.updateMatrixWorld(true)
 		arWorldRoot.matrixWorld.decompose(this.el.object3D.position, this.el.object3D.quaternion, this.el.object3D.scale)
 
 		//////////////////////////////////////////////////////////////////////////////
 		//		honor visibility
 		//////////////////////////////////////////////////////////////////////////////
 		if( _this._arAnchor.parameters.changeMatrixMode === 'modelViewMatrix' ){
-			_this.el.object3D.visible = this._arAnchor.object3d.visible;
-			if(_this.el.object3D.visible && !_this.markerFound) { 
-				this.el.emit('marker-found');
-				_this.markerFound = true; 
-			} else if (!_this.el.object3D.visible && _this.markerFound) {
-				this.el.emit('marker-lost');
-				_this.markerFound = false; 
-			}
+			_this.el.object3D.visible = this._arAnchor.object3d.visible
 		}else if( _this._arAnchor.parameters.changeMatrixMode === 'cameraTransformMatrix' ){
 			_this.el.sceneEl.object3D.visible = this._arAnchor.object3d.visible
 		}else console.assert(false)
@@ -8195,7 +8304,7 @@ AFRAME.registerPrimitive('a-camera-static', AFRAME.utils.extendDeep({}, AFRAME.p
 //////////////////////////////////////////////////////////////////////////////
 //		backward compatibility
 //////////////////////////////////////////////////////////////////////////////
-// FIXME 
+// FIXME
 AFRAME.registerPrimitive('a-marker', AFRAME.utils.extendDeep({}, AFRAME.primitives.getMeshMixin(), {
 	defaultComponents: {
 		'arjs-anchor': {},
